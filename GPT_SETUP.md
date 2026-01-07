@@ -51,7 +51,7 @@ paths:
                 file_type:
                   type: string
                   description: MIME type of the file
-                  default: text/markdown
+                  default: application/vnd.google-apps.document
                 folder_name:
                   type: string
                   description: Google Drive folder name
