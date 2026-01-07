@@ -8,6 +8,7 @@ import os
 import json
 from datetime import datetime
 import secrets
+import markdown
 
 app = Flask(__name__)
 
@@ -467,15 +468,50 @@ def save_content():
         
         # Create file based on type
         if file_type == 'application/vnd.google-apps.document':
-            # Convert to Google Doc
+            # Convert markdown to HTML for Google Docs
+            html_content = markdown.markdown(
+                content,
+                extensions=[
+                    'extra',      # Tables, fenced code blocks, etc.
+                    'nl2br',      # Convert newlines to <br>
+                    'sane_lists'  # Better list handling
+                ]
+            )
+            
+            # Wrap in proper HTML structure for Google Docs
+            full_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }}
+                    h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }}
+                    h2 {{ color: #34495e; margin-top: 24px; }}
+                    h3 {{ color: #555; }}
+                    ul, ol {{ margin-left: 20px; }}
+                    li {{ margin-bottom: 8px; }}
+                    blockquote {{ border-left: 4px solid #3498db; padding-left: 15px; margin-left: 0; color: #555; font-style: italic; }}
+                    code {{ background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }}
+                    pre {{ background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }}
+                    strong {{ color: #2c3e50; }}
+                </style>
+            </head>
+            <body>
+                {html_content}
+            </body>
+            </html>
+            """
+            
+            # Set MIME type for Google Docs conversion
             file_metadata['mimeType'] = 'application/vnd.google-apps.document'
             media = MediaInMemoryUpload(
-                content.encode('utf-8'),
-                mimetype='text/plain',
+                full_html.encode('utf-8'),
+                mimetype='text/html',
                 resumable=True
             )
         else:
-            # Save as markdown or plain text
+            # Save as markdown or plain text (no conversion)
             media = MediaInMemoryUpload(
                 content.encode('utf-8'),
                 mimetype=file_type,
