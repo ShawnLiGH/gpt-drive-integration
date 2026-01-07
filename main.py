@@ -47,7 +47,35 @@ def get_drive_service():
     elif os.path.exists(TOKEN_FILE):
         creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
     
-    if not creds or not creds.valid:
+    # If credentials exist but are invalid, try to refresh them
+    if creds and not creds.valid:
+        if creds.expired and creds.refresh_token:
+            try:
+                from google.auth.transport.requests import Request
+                creds.refresh(Request())
+                
+                # Save the refreshed token
+                token_data = {
+                    'token': creds.token,
+                    'refresh_token': creds.refresh_token,
+                    'token_uri': creds.token_uri,
+                    'client_id': creds.client_id,
+                    'client_secret': creds.client_secret,
+                    'scopes': creds.scopes
+                }
+                
+                # Update environment variable (for next restart)
+                with open(TOKEN_FILE, 'w') as token:
+                    json.dump(token_data, token)
+                
+                print("Token refreshed successfully")
+            except Exception as e:
+                print(f"Token refresh failed: {e}")
+                return None
+        else:
+            return None
+    
+    if not creds:
         return None
     
     return build('drive', 'v3', credentials=creds)
@@ -508,6 +536,34 @@ def debug():
             debug_info['token_json_valid'] = True
             debug_info['token_json_keys'] = list(token_data.keys())
             debug_info['has_refresh_token'] = 'refresh_token' in token_data
+            
+            # Try to create credentials object
+            try:
+                from google.auth.transport.requests import Request
+                creds = Credentials.from_authorized_user_info(token_data, SCOPES)
+                
+                debug_info['credentials_created'] = True
+                debug_info['credentials_valid'] = creds.valid
+                debug_info['credentials_expired'] = creds.expired if hasattr(creds, 'expired') else None
+                debug_info['has_token'] = bool(creds.token)
+                debug_info['has_refresh_token_obj'] = bool(creds.refresh_token)
+                
+                # Try to refresh if expired
+                if creds.expired and creds.refresh_token:
+                    try:
+                        creds.refresh(Request())
+                        debug_info['refresh_attempted'] = True
+                        debug_info['refresh_successful'] = True
+                        debug_info['credentials_valid_after_refresh'] = creds.valid
+                    except Exception as e:
+                        debug_info['refresh_attempted'] = True
+                        debug_info['refresh_successful'] = False
+                        debug_info['refresh_error'] = str(e)
+                
+            except Exception as e:
+                debug_info['credentials_created'] = False
+                debug_info['credentials_error'] = str(e)
+                
         except json.JSONDecodeError as e:
             debug_info['token_json_valid'] = False
             debug_info['token_json_error'] = str(e)
