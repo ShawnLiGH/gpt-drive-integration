@@ -100,16 +100,30 @@ def home():
     service = get_drive_service()
     authorized = service is not None
     
+    # Check token configuration
+    token_env = os.getenv('GOOGLE_TOKEN_JSON')
+    token_configured = bool(token_env)
+    token_valid = False
+    token_error = None
+    
+    if token_env:
+        try:
+            json.loads(token_env)
+            token_valid = True
+        except json.JSONDecodeError as e:
+            token_error = str(e)
+    
     html = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <title>GPT-Drive Integration Service</title>
         <style>
-            body {{ font-family: Arial, sans-serif; margin: 50px; }}
+            body {{ font-family: Arial, sans-serif; margin: 50px; max-width: 900px; }}
             .status {{ padding: 20px; border-radius: 5px; margin: 20px 0; }}
             .authorized {{ background: #d4edda; color: #155724; }}
             .not-authorized {{ background: #f8d7da; color: #721c24; }}
+            .warning {{ background: #fff3cd; color: #856404; padding: 15px; margin: 20px 0; border-radius: 5px; }}
             .button {{ 
                 display: inline-block; 
                 padding: 10px 20px; 
@@ -120,6 +134,22 @@ def home():
                 margin: 10px 5px;
             }}
             .button:hover {{ background: #0056b3; }}
+            .debug-link {{ 
+                display: inline-block;
+                padding: 8px 15px;
+                background: #6c757d;
+                color: white;
+                text-decoration: none;
+                border-radius: 5px;
+                margin: 10px 5px;
+                font-size: 14px;
+            }}
+            .debug-link:hover {{ background: #5a6268; }}
+            table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+            th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }}
+            th {{ background: #f8f9fa; font-weight: bold; }}
+            .check {{ color: #28a745; }}
+            .cross {{ color: #dc3545; }}
         </style>
     </head>
     <body>
@@ -129,21 +159,69 @@ def home():
             <p>Drive API: {'Connected' if authorized else 'Not Connected'}</p>
         </div>
         
-        {'<a href="/authorize" class="button">Authorize with Google Drive</a>' if not authorized else '<p>Service is ready to receive requests from your GPT.</p>'}
+        {'<p style="color: #28a745; font-weight: bold;">✓ Service is ready to receive requests from your GPT!</p>' if authorized else ''}
+        
+        {f'''<div class="warning">
+            <h3>⚠️ Configuration Issue Detected</h3>
+            <p><strong>Token Status:</strong></p>
+            <ul>
+                <li>GOOGLE_TOKEN_JSON configured: {'✓' if token_configured else '✗'}</li>
+                <li>Token JSON valid: {'✓' if token_valid else '✗' if token_configured else 'N/A'}</li>
+                {f'<li style="color: #dc3545;">Error: {token_error}</li>' if token_error else ''}
+            </ul>
+            <p><strong>To fix:</strong></p>
+            <ol>
+                <li>Click "Authorize with Google Drive" below</li>
+                <li>Complete authorization and copy the SINGLE-LINE token</li>
+                <li>Add to Railway as GOOGLE_TOKEN_JSON variable</li>
+                <li>Wait for redeploy and refresh this page</li>
+            </ol>
+            <p><a href="/debug" class="debug-link">View Debug Info</a></p>
+        </div>''' if not authorized else ''}
+        
+        {'<a href="/authorize" class="button">Authorize with Google Drive</a>' if not authorized else ''}
         
         <h3>Configuration</h3>
-        <ul>
-            <li>Target Folder: {FOLDER_NAME}</li>
-            <li>API Key: {'Configured' if API_KEY else 'Not Set'}</li>
-            <li>Redirect URI: {REDIRECT_URI}</li>
-        </ul>
+        <table>
+            <tr>
+                <th>Setting</th>
+                <th>Value</th>
+                <th>Status</th>
+            </tr>
+            <tr>
+                <td>Target Folder</td>
+                <td>{FOLDER_NAME}</td>
+                <td class="check">✓</td>
+            </tr>
+            <tr>
+                <td>API Key</td>
+                <td>{'Configured' if API_KEY else 'Not Set'}</td>
+                <td class="{'check' if API_KEY else 'cross'}">{'✓' if API_KEY else '✗'}</td>
+            </tr>
+            <tr>
+                <td>Redirect URI</td>
+                <td>{REDIRECT_URI}</td>
+                <td class="check">✓</td>
+            </tr>
+            <tr>
+                <td>Google Token</td>
+                <td>{'Valid' if token_valid else 'Invalid' if token_configured else 'Not Set'}</td>
+                <td class="{'check' if token_valid else 'cross'}">{'✓' if token_valid else '✗'}</td>
+            </tr>
+        </table>
         
         <h3>Endpoints</h3>
         <ul>
             <li><strong>POST /save-content</strong> - Save content to Drive</li>
             <li><strong>GET /authorize</strong> - Start OAuth flow</li>
             <li><strong>GET /health</strong> - Health check</li>
+            <li><strong>GET /debug</strong> - Debug information</li>
         </ul>
+        
+        <p style="margin-top: 30px;">
+            <a href="/health" class="debug-link">Health Check</a>
+            <a href="/debug" class="debug-link">Debug Info</a>
+        </p>
     </body>
     </html>
     """
@@ -168,26 +246,53 @@ def oauth2callback():
         # Save credentials
         token_data = save_token(credentials)
         
+        # Create single-line JSON for easy copying
+        single_line_json = json.dumps(token_data, separators=(',', ':'))
+        
         return f"""
         <!DOCTYPE html>
         <html>
         <head>
             <title>Authorization Successful</title>
             <style>
-                body {{ font-family: Arial, sans-serif; margin: 50px; }}
-                .success {{ background: #d4edda; padding: 20px; border-radius: 5px; color: #155724; }}
+                body {{ font-family: Arial, sans-serif; margin: 50px; max-width: 1000px; }}
+                .success {{ background: #d4edda; padding: 20px; border-radius: 5px; color: #155724; margin-bottom: 30px; }}
                 .token-box {{ 
                     background: #f8f9fa; 
                     padding: 15px; 
-                    border: 1px solid #dee2e6; 
+                    border: 2px solid #007bff; 
                     border-radius: 5px; 
                     margin: 20px 0;
                     font-family: monospace;
                     font-size: 12px;
                     overflow-x: auto;
+                    word-break: break-all;
                 }}
-                .warning {{ background: #fff3cd; padding: 15px; border-radius: 5px; color: #856404; margin: 20px 0; }}
+                .warning {{ background: #fff3cd; padding: 20px; border-radius: 5px; color: #856404; margin: 20px 0; }}
+                .step {{ background: #e7f3ff; padding: 15px; margin: 10px 0; border-left: 4px solid #007bff; }}
+                .copy-btn {{ 
+                    background: #007bff; 
+                    color: white; 
+                    padding: 10px 20px; 
+                    border: none; 
+                    border-radius: 5px; 
+                    cursor: pointer;
+                    font-size: 14px;
+                    margin: 10px 0;
+                }}
+                .copy-btn:hover {{ background: #0056b3; }}
+                .important {{ color: #721c24; font-weight: bold; }}
             </style>
+            <script>
+                function copyToken() {{
+                    const tokenText = document.getElementById('tokenText').innerText;
+                    navigator.clipboard.writeText(tokenText).then(() => {{
+                        const btn = document.getElementById('copyBtn');
+                        btn.innerText = '✓ Copied!';
+                        setTimeout(() => {{ btn.innerText = 'Copy Token to Clipboard'; }}, 2000);
+                    }});
+                }}
+            </script>
         </head>
         <body>
             <div class="success">
@@ -196,20 +301,60 @@ def oauth2callback():
             </div>
             
             <div class="warning">
-                <h2>⚠ Important: Update Environment Variable</h2>
-                <p>Copy the token below and save it to your <strong>GOOGLE_TOKEN_JSON</strong> environment variable in Railway/Render:</p>
-                <div class="token-box">{json.dumps(token_data, indent=2)}</div>
-                <p>Steps:</p>
-                <ol>
-                    <li>Go to your Railway/Render dashboard</li>
-                    <li>Find the Variables/Environment section</li>
-                    <li>Update or add: <strong>GOOGLE_TOKEN_JSON</strong></li>
-                    <li>Paste the JSON above</li>
-                    <li>Redeploy if needed</li>
-                </ol>
+                <h2>⚠️ IMPORTANT: Final Step Required</h2>
+                <p class="important">The authorization will NOT persist until you complete this step!</p>
+                
+                <div class="step">
+                    <h3>Step 1: Copy the Token (Single Line JSON)</h3>
+                    <p>Click the button below to copy the token:</p>
+                    <button id="copyBtn" class="copy-btn" onclick="copyToken()">Copy Token to Clipboard</button>
+                    <div class="token-box" id="tokenText">{single_line_json}</div>
+                    <p><strong>Note:</strong> This is a SINGLE LINE (no line breaks). It's ready to paste directly into Railway.</p>
+                </div>
+                
+                <div class="step">
+                    <h3>Step 2: Add to Railway Environment Variables</h3>
+                    <ol>
+                        <li>Go to your <strong>Railway dashboard</strong></li>
+                        <li>Click on your service</li>
+                        <li>Go to <strong>Variables</strong> tab</li>
+                        <li>Look for <strong>GOOGLE_TOKEN_JSON</strong> variable:
+                            <ul>
+                                <li>If it exists: Click the three dots → <strong>Edit</strong></li>
+                                <li>If it doesn't exist: Click <strong>New Variable</strong></li>
+                            </ul>
+                        </li>
+                        <li>Variable name: <code>GOOGLE_TOKEN_JSON</code></li>
+                        <li>Paste the token you just copied (Ctrl+V or Cmd+V)</li>
+                        <li>Click <strong>Add</strong> or <strong>Update</strong></li>
+                    </ol>
+                </div>
+                
+                <div class="step">
+                    <h3>Step 3: Verify After Redeploy</h3>
+                    <p>Railway will automatically redeploy (takes 1-2 minutes).</p>
+                    <p>After redeployment:</p>
+                    <ol>
+                        <li>Visit: <a href="/">Homepage</a></li>
+                        <li>Status should show: <strong>✓ Authorized</strong></li>
+                        <li>Or check: <a href="/debug">/debug endpoint</a> (should show token_json_valid: true)</li>
+                    </ol>
+                </div>
+                
+                <div class="step">
+                    <h3>Common Issues</h3>
+                    <p><strong>If still showing "Not Authorized" after redeployment:</strong></p>
+                    <ul>
+                        <li>Make sure you copied the ENTIRE single-line JSON above</li>
+                        <li>Check there are NO extra spaces before or after the JSON in Railway</li>
+                        <li>Verify the variable name is exactly: <code>GOOGLE_TOKEN_JSON</code></li>
+                        <li>Check <a href="/debug">/debug</a> to see if the token is valid</li>
+                        <li>If debug shows "token_json_valid: false", delete the variable and try again</li>
+                    </ul>
+                </div>
             </div>
             
-            <p><a href="/">Return to Home</a></p>
+            <p style="margin-top: 30px;"><a href="/">← Return to Home</a></p>
         </body>
         </html>
         """
@@ -340,6 +485,39 @@ def health():
         'drive_folder': FOLDER_NAME,
         'api_key_configured': bool(API_KEY)
     })
+
+@app.route('/debug')
+def debug():
+    """Debug endpoint to check environment configuration"""
+    token_env = os.getenv('GOOGLE_TOKEN_JSON')
+    creds_env = os.getenv('GOOGLE_CREDENTIALS_JSON')
+    
+    debug_info = {
+        'token_json_set': bool(token_env),
+        'token_json_length': len(token_env) if token_env else 0,
+        'credentials_json_set': bool(creds_env),
+        'redirect_uri': REDIRECT_URI,
+        'drive_folder': FOLDER_NAME,
+        'api_key_set': bool(API_KEY),
+    }
+    
+    # Try to parse token JSON
+    if token_env:
+        try:
+            token_data = json.loads(token_env)
+            debug_info['token_json_valid'] = True
+            debug_info['token_json_keys'] = list(token_data.keys())
+            debug_info['has_refresh_token'] = 'refresh_token' in token_data
+        except json.JSONDecodeError as e:
+            debug_info['token_json_valid'] = False
+            debug_info['token_json_error'] = str(e)
+            debug_info['token_json_preview'] = token_env[:100] + '...' if len(token_env) > 100 else token_env
+    
+    # Check if service can be initialized
+    service = get_drive_service()
+    debug_info['service_initialized'] = service is not None
+    
+    return jsonify(debug_info)
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 8080))
