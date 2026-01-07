@@ -17,21 +17,21 @@ This guide walks you through configuring your Custom GPT to automatically save l
 5. Paste the following OpenAPI schema:
 
 ```yaml
-openapi: 3.0.0
+openapi: 3.1.0
 info:
   title: Google Drive Content Saver
   description: Saves learning coordinator outputs to Google Drive
   version: 1.0.0
 servers:
-  - url: REPLACE_WITH_YOUR_RAILWAY_OR_RENDER_URL
-    description: Production server (e.g., https://gpt-drive-integration-production.up.railway.app)
+  - url: https://web-production-499a6.up.railway.app
+    description: Production server
 
 paths:
   /save-content:
     post:
       operationId: saveToDrive
       summary: Save content to Google Drive
-      description: Saves the daily learning output to a specified Google Drive folder
+      description: Saves the daily learning output to Google Drive folder
       requestBody:
         required: true
         content:
@@ -45,75 +45,22 @@ paths:
                 content:
                   type: string
                   description: The complete text content to save
-                  example: "# Day 1 - Foundations\n\nComplete daily output here..."
                 filename:
                   type: string
-                  description: Name of the file with extension (e.g., "Day_01_Week_1_Foundations.md")
-                  example: "Day_01_Week_1_Foundations.md"
+                  description: Filename with extension
                 file_type:
                   type: string
                   description: MIME type of the file
-                  default: "text/markdown"
-                  enum:
-                    - "text/plain"
-                    - "text/markdown"
-                    - "application/vnd.google-apps.document"
+                  default: text/markdown
+                folder_name:
+                  type: string
+                  description: Google Drive folder name
+                  default: "AI Learning Coordinator Outputs"
       responses:
-        '200':
+        "200":
           description: File saved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  file_id:
-                    type: string
-                    example: "1ABC123xyz..."
-                  link:
-                    type: string
-                    example: "https://drive.google.com/file/d/1ABC123xyz.../view"
-                  filename:
-                    type: string
-                    example: "Day_01_Week_1_Foundations.md"
-                  folder:
-                    type: string
-                    example: "AI Learning Coordinator Outputs"
-                  message:
-                    type: string
-                    example: "Successfully saved to Google Drive"
-        '401':
-          description: Unauthorized - Invalid API Key
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Unauthorized - Invalid API Key"
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Error message details"
-
-components:
-  securitySchemes:
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: X-API-Key
-
-security:
-  - ApiKeyAuth: []
+        "401":
+          description: Unauthorized
 ```
 
 **Important:** Replace `REPLACE_WITH_YOUR_RAILWAY_OR_RENDER_URL` with your actual deployment URL (e.g., `https://gpt-drive-integration-production.up.railway.app`)
