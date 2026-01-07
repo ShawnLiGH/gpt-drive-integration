@@ -443,6 +443,7 @@ def save_content():
         content = data.get('content')
         filename = data.get('filename')
         file_type = data.get('file_type', 'text/markdown')
+        folder_name = data.get('folder_name', FOLDER_NAME)  # Use custom folder or default
         
         if not content or not filename:
             return jsonify({'error': 'Missing content or filename'}), 400
@@ -455,8 +456,8 @@ def save_content():
                 'message': 'Please visit the /authorize endpoint to connect your Google Drive'
             }), 401
         
-        # Get or create folder
-        folder_id = get_or_create_folder(service, FOLDER_NAME)
+        # Get or create folder (using custom folder name if provided)
+        folder_id = get_or_create_folder(service, folder_name)
         
         # Prepare file metadata
         file_metadata = {
@@ -493,7 +494,7 @@ def save_content():
             'file_id': file.get('id'),
             'link': file.get('webViewLink'),
             'filename': file.get('name'),
-            'folder': FOLDER_NAME,
+            'folder': folder_name,
             'message': f'Successfully saved to Google Drive'
         })
     
