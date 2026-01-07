@@ -501,6 +501,38 @@ def save_content():
         app.logger.error(f"Error saving to Drive: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/test-auth', methods=['POST', 'GET'])
+def test_auth():
+    """Test endpoint to diagnose authentication issues"""
+    
+    # Get all headers
+    headers_dict = dict(request.headers)
+    
+    # Get the API key from header
+    received_key = request.headers.get('X-API-Key', 'NOT_PRESENT')
+    
+    # Get expected key from environment
+    expected_key = API_KEY
+    
+    # Check if they match
+    keys_match = received_key == expected_key
+    
+    return jsonify({
+        'authentication_test': {
+            'received_api_key_length': len(received_key) if received_key != 'NOT_PRESENT' else 0,
+            'expected_api_key_length': len(expected_key) if expected_key else 0,
+            'received_key_first_5': received_key[:5] if received_key != 'NOT_PRESENT' else 'N/A',
+            'expected_key_first_5': expected_key[:5] if expected_key else 'N/A',
+            'received_key_last_5': received_key[-5:] if received_key != 'NOT_PRESENT' else 'N/A',
+            'expected_key_last_5': expected_key[-5:] if expected_key else 'N/A',
+            'keys_match': keys_match,
+            'api_key_configured_in_env': bool(expected_key),
+            'x_api_key_header_present': 'X-API-Key' in headers_dict,
+        },
+        'all_headers': {k: v for k, v in headers_dict.items() if 'api' in k.lower() or 'auth' in k.lower()},
+        'message': 'Match!' if keys_match else 'Keys do not match'
+    })
+
 @app.route('/health')
 def health():
     """Health check endpoint"""
